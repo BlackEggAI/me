@@ -1,0 +1,21 @@
+#!/bin/sh
+# Refuse a push that carries merge commits: linear history only.
+#
+# WHY A HOOK AND NOT A SETTING: the server-side rule (rulesets →
+# required_linear_history) can only be set on a public repository on the free
+# plan, and this one is private. So the rule travels with the repository instead
+# of living in a settings page nobody re-reads.
+#
+# A MERGE HAS TO BE A DELIBERATE ACT THAT SURVIVES THIS CHECK, not the accident of
+# `git pull` remembering the wrong default.
+while read -r local_ref local_sha remote_ref remote_sha; do
+	[ "$local_sha" = "0000000000000000000000000000000000000000" ] && continue
+	merges=$(git rev-list --merges "$local_sha" --not --remotes 2>/dev/null)
+	if [ -n "$merges" ]; then
+		echo "refusing to push $remote_ref: it carries merge commits" >&2
+		echo "linear history only — rebase instead of merging:" >&2
+		echo "$merges" | head -5 | sed 's/^/  /' >&2
+		exit 1
+	fi
+done
+exit 0
